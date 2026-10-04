@@ -69,7 +69,8 @@ References to series codes or synthetic data:
 ## 5. Secrets read, by name
 
 - Browser (build-time, public): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` in `src/lib/supabase.ts`.
-- Server functions: none yet. Bolt secrets configured: none. Planned: ADMIN_EMAILS, INGEST_KEY, CRON_SECRET, ANTHROPIC_API_KEY, RESEND_API_KEY (optional). Platform-provided to functions: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY.
+- Server functions (B2): INGEST_KEY, INGEST_KEY_NEXT (optional, rotation), CRON_SECRET, INGEST_ALLOWED_IPS (optional, comma-separated), ADMIN_EMAILS (comma-separated). Platform-provided: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY. Later stages: ANTHROPIC_API_KEY, RESEND_API_KEY (optional).
+- Check on 4 Oct 2026: the function secrets list showed only the platform-provided names, so INGEST_KEY, CRON_SECRET and ADMIN_EMAILS were not yet visible to the functions.
 
 ## 6. Caller IP address
 
@@ -79,9 +80,43 @@ Supabase's function gateway forwards the client address in `x-forwarded-for` (fi
 
 ```
 FUNCTIONS_BASE_URL = https://qkkyckglzpjqbvxpskts.supabase.co/functions/v1
-BOLT_ANON_KEY      = not needed if every box-facing function is deployed with verify_jwt = false
-                     (planned for B2). Fallback only, public key, safe to share:
-                     eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFra3lja2dsenBqcWJ2eHBza3RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3ODUyNzEsImV4cCI6MjEwNjM2MTI3MX0.hyl_COtRsaXKWgtTofc-ev91-fzkMmrrG-c7SBr-2gI
+BOLT_ANON_KEY      = not needed. All five box-facing functions are deployed with verify_jwt = false,
+                     so send no Authorization or apikey header.
 INGEST_KEY         = set in Bolt secrets and on the box (value not recorded here)
 CRON_SECRET        = set in Bolt secrets and on the box (value not recorded here)
 ```
+
+Curl examples. Placeholders only: replace `<INGEST_KEY>` and `<CRON_SECRET>` on the box. For A and B, save the samples from docs/CONTRACT.md section 8 as `sample-a.json` and `sample-b.json`. Every call is a POST and safe to repeat.
+
+```
+BASE=https://qkkyckglzpjqbvxpskts.supabase.co/functions/v1
+
+# Sample A - sync-catalogue
+curl -sS -X POST "$BASE/sync-catalogue" \
+  -H 'x-ingest-key: <INGEST_KEY>' -H 'content-type: application/json' \
+  --data @sample-a.json
+
+# Sample B - ingest-market-data (at most 5,000 observations per call)
+curl -sS -X POST "$BASE/ingest-market-data" \
+  -H 'x-ingest-key: <INGEST_KEY>' -H 'content-type: application/json' \
+  --data @sample-b.json
+
+# Sample C - ingest-brief: multipart, field "payload" (sample C) and optional field "pdf" (<= 10 MB).
+# payload.pdf.sha256 and payload.pdf.bytes must match the attached file; omit payload.pdf when sending no file.
+curl -sS -X POST "$BASE/ingest-brief" \
+  -H 'x-ingest-key: <INGEST_KEY>' \
+  -F 'payload=<sample-c.json;type=application/json' \
+  -F 'pdf=@grain-desk-2026-10-05.pdf;type=application/pdf'
+
+# Sample D - ingest-heartbeat
+curl -sS -X POST "$BASE/ingest-heartbeat" \
+  -H 'x-ingest-key: <INGEST_KEY>' -H 'content-type: application/json' \
+  --data '{"contract_version":"1","run_id":"2026-10-05T0550Z-7f3a","phase":"finished","started_at":"2026-10-05T06:50:01+01:00","finished_at":"2026-10-05T06:51:12+01:00","streams":{"catalogue":"ok","market":"ok","brief":"ok","daily_cycle":"ok"},"counts":{"observations_sent":42,"quarantined":0,"spooled":0},"warnings":[]}'
+
+# run-daily-cycle - uses x-cron-secret, not x-ingest-key
+curl -sS -X POST "$BASE/run-daily-cycle" \
+  -H 'x-cron-secret: <CRON_SECRET>' -H 'content-type: application/json' \
+  --data '{"contract_version":"1","as_of":"2026-10-05"}'
+```
+
+Replies follow contract section 3: success `{"ok":true,"request_id",...}`; error `{"ok":false,"request_id","error","detail"}`. Codes: 400 bad_json / schema / contract_version, 401 unauthorised, 403 ip_not_allowed, 405 method_not_allowed, 413 payload_too_large, 422 unknown_code / licence_refused, 429 rate_limited (with Retry-After), 503 paused (body also carries `"paused": true`), 500 internal. Note: the sample PDF hash and size in sample C are illustrative, so a real file must replace them.
