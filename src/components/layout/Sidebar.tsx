@@ -1,9 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { NAV_GROUPS, NAV_ITEMS } from '@/app/navigation';
+import { NAV_GROUPS, visibleNavItems } from '@/app/navigation';
+import { useAdmin } from '@/admin/AdminProvider';
 import { AccountFooter } from '@/components/layout/AccountFooter';
 import { BrandMark } from '@/components/layout/BrandMark';
 
 export function Sidebar() {
+  const items = visibleNavItems(useAdmin().isAdmin);
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-navy lg:flex">
       <div className="border-b border-white/10 px-6 py-6">
@@ -17,7 +19,7 @@ export function Sidebar() {
               {group}
             </p>
             <ul className="space-y-1">
-              {NAV_ITEMS.filter((item) => item.group === group).map(({ path, label, icon: Icon }) => (
+              {items.filter((item) => item.group === group).map(({ path, label, icon: Icon }) => (
                 <li key={path}>
                   <NavLink
                     to={path}

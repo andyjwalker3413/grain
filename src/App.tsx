@@ -3,8 +3,10 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { NAV_ITEMS, type NavItem } from '@/app/navigation';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
+import { AdminProvider } from '@/admin/AdminProvider';
 import { FarmProvider, useFarm } from '@/farm/FarmProvider';
 import { AppShell } from '@/components/layout/AppShell';
+import { AdminPage } from '@/pages/AdminPage';
 import { AlertsPage } from '@/pages/AlertsPage';
 import { AuthPage } from '@/pages/AuthPage';
 import { BriefPage } from '@/pages/BriefPage';
@@ -26,6 +28,7 @@ const PAGES: Record<string, () => ReactElement> = {
   '/documents': () => <DocumentsPage />,
   '/chat': () => <DeskChatPage />,
   '/brief': () => <BriefPage />,
+  '/admin': () => <AdminPage />,
 };
 
 const pageFor = (item: NavItem) => PAGES[item.path]?.() ?? <SectionPage item={item} />;
@@ -88,7 +91,9 @@ function Gate() {
   if (!session) return <AuthPage />;
   return (
     <FarmProvider key={session.user.id}>
-      <SignedInApp />
+      <AdminProvider>
+        <SignedInApp />
+      </AdminProvider>
     </FarmProvider>
   );
 }

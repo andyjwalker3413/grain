@@ -10,6 +10,7 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@engine': fileURLToPath(new URL('./supabase/functions/_shared/engine', import.meta.url)),
+      '@boxlink': fileURLToPath(new URL('./supabase/functions/_shared/boxlink', import.meta.url)),
     },
   },
   optimizeDeps: {

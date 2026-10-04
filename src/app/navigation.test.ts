@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NAV_ITEMS, isActivePath } from '@/app/navigation';
+import { NAV_ITEMS, isActivePath, visibleNavItems } from '@/app/navigation';
 
 describe('navigation', () => {
   it('lists the ten pages in order', () => {
@@ -25,6 +25,11 @@ describe('navigation', () => {
 
   it('keeps five pages on the phone tab bar', () => {
     expect(NAV_ITEMS.filter((item) => item.primaryOnMobile)).toHaveLength(5);
+  });
+
+  it('hides Admin from people who are not desk admins', () => {
+    expect(visibleNavItems(false).some((item) => item.path === '/admin')).toBe(false);
+    expect(visibleNavItems(true).some((item) => item.path === '/admin')).toBe(true);
   });
 
   it('matches active paths without treating Overview as a prefix', () => {

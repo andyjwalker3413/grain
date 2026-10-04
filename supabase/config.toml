@@ -1,0 +1,17 @@
+[functions.sync-catalogue]
+verify_jwt = false
+
+[functions.ingest-market-data]
+verify_jwt = false
+
+[functions.ingest-brief]
+verify_jwt = false
+
+[functions.ingest-heartbeat]
+verify_jwt = false
+
+[functions.run-daily-cycle]
+verify_jwt = false
+
+[functions.admin-sync]
+verify_jwt = true

@@ -21,6 +21,7 @@ export interface NavItem {
   icon: LucideIcon;
   group: NavGroup;
   primaryOnMobile: boolean;
+  adminOnly?: boolean;
 }
 
 export const NAV_GROUPS: NavGroup[] = ['Farm', 'Desk', 'Account'];
@@ -107,12 +108,17 @@ export const NAV_ITEMS: NavItem[] = [
   {
     path: '/admin',
     label: 'Admin',
-    description: 'Desk tools for approvals, sources, costs and self-tests.',
+    description: 'Desk tools: the box link, data health, sources and the daily cycle.',
     icon: ShieldCheck,
     group: 'Account',
     primaryOnMobile: false,
+    adminOnly: true,
   },
 ];
+
+export function visibleNavItems(isAdmin: boolean): NavItem[] {
+  return NAV_ITEMS.filter((item) => isAdmin || !item.adminOnly);
+}
 
 export function isActivePath(itemPath: string, pathname: string): boolean {
   if (itemPath === '/') return pathname === '/';

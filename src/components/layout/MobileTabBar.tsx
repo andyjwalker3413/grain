@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { MoreHorizontal, X } from 'lucide-react';
-import { NAV_ITEMS, isActivePath } from '@/app/navigation';
+import { isActivePath, visibleNavItems } from '@/app/navigation';
+import { useAdmin } from '@/admin/AdminProvider';
 
-const PRIMARY = NAV_ITEMS.filter((item) => item.primaryOnMobile);
-const SECONDARY = NAV_ITEMS.filter((item) => !item.primaryOnMobile);
+const PRIMARY = visibleNavItems(false).filter((item) => item.primaryOnMobile);
 
 const tabClass = (active: boolean) =>
   [
@@ -14,6 +14,7 @@ const tabClass = (active: boolean) =>
 
 export function MobileTabBar() {
   const { pathname } = useLocation();
+  const SECONDARY = visibleNavItems(useAdmin().isAdmin).filter((item) => !item.primaryOnMobile);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreActive = SECONDARY.some((item) => isActivePath(item.path, pathname));
 

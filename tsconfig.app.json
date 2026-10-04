@@ -18,7 +18,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@engine/*": ["supabase/functions/_shared/engine/*"]
+      "@engine/*": ["supabase/functions/_shared/engine/*"],
+      "@boxlink/*": ["supabase/functions/_shared/boxlink/*"]
     },
 
     /* Linting */
@@ -27,5 +28,5 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "supabase/functions/_shared/engine"]
+  "include": ["src", "supabase/functions/_shared/engine", "supabase/functions/_shared/boxlink"]
 }
