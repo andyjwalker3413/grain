@@ -63,6 +63,62 @@ for (const [check, run] of writes) {
   record('API, signed-in non-admin', check, denied(r), r.error ? describe(r) : `${r.data.length} rows changed`);
 }
 
+const writesExtra = [
+  ['insert market_series', () => user.from('market_series').insert({ id: 'selftest', source_id: 'syn-grain', commodity: 'selftest', name: 'selftest', unit: 'GBP_per_t', sort_order: 999 }).select()],
+  ['insert market_observations', () => user.from('market_observations').insert({ series_id: 'selftest', observed_on: '2026-10-05', value: 1 }).select()],
+  ['insert briefs', () => user.from('briefs').insert({ brief_date: '2026-10-05', title: 'selftest', summary: '', sections: [], is_synthetic: true, origin: 'selftest', edition: 'weekday_short', watchlist: [], warnings: [] }).select()],
+  ['update briefs', () => user.from('briefs').update({ title: 'selftest' }).neq('id', '00000000-0000-0000-0000-000000000000').select()],
+];
+for (const [check, run] of writesExtra) {
+  const r = await run();
+  record('API, signed-in non-admin', check, denied(r), r.error ? describe(r) : `${r.data.length} rows changed`);
+}
+
+const farmTables = ['alert_events', 'alert_rules', 'audit_log', 'contracts', 'cost_lines', 'crops', 'documents', 'merchants', 'messages'];
+const makeFarmUser = async (label) => {
+  const client = createClient(url, anonKey, opts);
+  const email = `selftest.${label}.${Date.now()}@grain-desk-selftest.test`;
+  const s = await client.auth.signUp({ email, password: `St-${crypto.randomUUID()}` });
+  if (s.error || !s.data.session) throw new Error(`Could not create ${label}: ${s.error?.message ?? 'no session'}`);
+  const demo = await client.rpc('create_demo_farm');
+  if (demo.error) throw new Error(`Could not create ${label}'s farm: ${demo.error.message}`);
+  const mine = await client.from('farm_members').select('farm_id').eq('user_id', s.data.user.id).limit(1).maybeSingle();
+  if (mine.error || !mine.data) throw new Error(`Could not read ${label}'s farm id`);
+  return { client, userId: s.data.user.id, farmId: mine.data.farm_id };
+};
+const farmA = await makeFarmUser('farm-a');
+const farmB = await makeFarmUser('farm-b');
+
+for (const [me, other, label] of [[farmA, farmB, 'A vs B'], [farmB, farmA, 'B vs A']]) {
+  const area = `Two farms, ${label}`;
+  const own = await me.client.from('farms').select('id').eq('id', me.farmId);
+  record(area, 'positive control: own farm readable', own.data?.length === 1, own.error ? describe(own) : `${own.data?.length} row`);
+  const otherFarm = await me.client.from('farms').select('id').eq('id', other.farmId);
+  record(area, 'read other farm (farms)', denied(otherFarm), describe(otherFarm));
+  const renameOther = await me.client.from('farms').update({ name: 'selftest' }).eq('id', other.farmId).select();
+  record(area, 'update other farm (farms)', denied(renameOther), describe(renameOther));
+  const deleteOther = await me.client.from('farms').delete().eq('id', other.farmId).select();
+  record(area, 'delete other farm (farms)', denied(deleteOther), describe(deleteOther));
+  const memberInsert = await me.client.from('farm_members').insert({ farm_id: other.farmId, user_id: me.userId, role: 'owner' }).select();
+  record(area, 'add self to other farm (farm_members insert)', memberInsert.error?.code === '42501', describe(memberInsert));
+  const memberUpdate = await me.client.from('farm_members').update({ role: 'owner' }).eq('farm_id', other.farmId).select();
+  record(area, 'change roles in other farm (farm_members update)', denied(memberUpdate), describe(memberUpdate));
+  const memberDelete = await me.client.from('farm_members').delete().eq('farm_id', other.farmId).select();
+  record(area, 'remove members of other farm (farm_members delete)', denied(memberDelete), describe(memberDelete));
+  const memberRead = await me.client.from('farm_members').select('user_id').eq('farm_id', other.farmId);
+  record(area, 'list members of other farm (farm_members read)', denied(memberRead), describe(memberRead));
+  for (const t of farmTables) {
+    const read = await me.client.from(t).select('*').eq('farm_id', other.farmId).limit(5);
+    record(area, `read ${t} of other farm`, denied(read), read.error ? describe(read) : `${read.data.length} rows visible`);
+    const insert = await me.client.from(t).insert({ farm_id: other.farmId }).select();
+    record(area, `insert ${t} into other farm`, insert.error?.code === '42501', describe(insert));
+    const update = await me.client.from(t).update({ farm_id: other.farmId }).eq('farm_id', other.farmId).select();
+    record(area, `update ${t} of other farm`, denied(update), describe(update));
+    const del = await me.client.from(t).delete().eq('farm_id', other.farmId).select();
+    record(area, `delete ${t} of other farm`, denied(del), describe(del));
+  }
+}
+
 const upload = await user.storage.from('brief-pdfs').upload(`selftest/${Date.now()}.pdf`, new Blob(['%PDF-1.4'], { type: 'application/pdf' }));
 record('API, signed-in non-admin', 'upload to brief-pdfs', Boolean(upload.error), upload.error ? `refused (${upload.error.message})` : 'allowed');
 
@@ -86,5 +142,5 @@ record('UI, signed-in non-admin', 'admin check reports not an admin (hides Admin
 
 console.table(results);
 const failed = results.filter((r) => r.result === 'FAIL').length;
-console.log(`${results.length - failed} PASS, ${failed} FAIL. Throwaway user to delete: ${userId}`);
+console.log(`${results.length - failed} PASS, ${failed} FAIL. Throwaway users to delete: ${[userId, farmA.userId, farmB.userId].join(', ')}. Throwaway farms to delete: ${[farmA.farmId, farmB.farmId].join(', ')}`);
 process.exitCode = failed ? 1 : 0;
